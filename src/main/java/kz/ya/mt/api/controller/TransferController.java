@@ -30,11 +30,23 @@ public class TransferController {
 
         Account toAccount = AccountDao.getInstance().get(toAccountNo).orElseThrow(
                 () -> new AccountNotFoundException(toAccountNo));
-
+        
+        boolean isCompletedSuccessfully = performTransaction(fromAccount, toAccount, amount);
+        
+        if (isCompletedSuccessfully) {
+            ctx.status(200); // OK
+        } else {
+            ctx.status(408); // Request Timeout
+        }
+    }
+    
+    public boolean performTransaction(Account fromAccount, Account toAccount, BigDecimal amount) throws InterruptedException {
+        boolean isCompletedSuccessfully;
+        
         if (fromAccount.getLock().tryLock(LOCK_WAIT_SEC, TimeUnit.SECONDS)) {
             try {
                 if (fromAccount.getBalance().compareTo(amount) < 0) {
-                    fromAccount.incFailedTransferCount();
+//                    fromAccount.incFailedTransferCount();
                     throw new NotEnoughFundsException(fromAccount.getNumber());
                 }
 
@@ -42,20 +54,22 @@ public class TransferController {
                     try {
                         AccountDao.getInstance().withdraw(fromAccount, amount);
                         AccountDao.getInstance().deposit(toAccount, amount);
-                        ctx.status(200); // OK
+                        isCompletedSuccessfully = true;
                     } finally {
                         toAccount.getLock().unlock();
                     }
                 } else {
-                    toAccount.incFailedTransferCount();
-                    ctx.status(408); // Request Timeout
+//                    toAccount.incFailedTransferCount();
+                    isCompletedSuccessfully = false;
                 }
             } finally {
                 fromAccount.getLock().unlock();
             }
         } else {
-            fromAccount.incFailedTransferCount();
-            ctx.status(408); // Request Timeout
+//            fromAccount.incFailedTransferCount();
+            isCompletedSuccessfully = false;
         }
+        
+        return isCompletedSuccessfully;
     }
 }

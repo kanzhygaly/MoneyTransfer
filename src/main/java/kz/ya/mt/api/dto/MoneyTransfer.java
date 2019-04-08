@@ -2,6 +2,7 @@ package kz.ya.mt.api.dto;
 
 import java.math.BigDecimal;
 
+@Deprecated
 public class MoneyTransfer {
 
     private final String fromAccountNo;

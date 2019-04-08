@@ -15,17 +15,28 @@ import java.util.concurrent.ConcurrentMap;
 
 public class AccountDao {
 
-    private final ConcurrentMap<String, Account> datastore = new ConcurrentHashMap<>();
-    private static AccountDao localInstance = null;
+    private final ConcurrentMap<String, Account> datastore = new ConcurrentHashMap<>(1000);
+    private volatile static AccountDao INSTANCE;
 
     private AccountDao() {
+        // to prevent creating another instance of AccountDao using Reflection
+        throw new RuntimeException("AccountDao is already initialized");
     }
 
     public static AccountDao getInstance() {
-        if (localInstance == null) {
-            localInstance = new AccountDao();
+        if (INSTANCE == null) {
+            synchronized (AccountDao.class) {
+                if (INSTANCE == null) {
+                    INSTANCE = new AccountDao();
+                }
+            }            
         }
-        return localInstance;
+        return INSTANCE;
+    }
+        
+    private Object readResolve(){
+        // to prevent another instance of AccountDao during Serialization
+        return INSTANCE;
     }
 
     public Optional<Account> get(String number) {
@@ -34,7 +45,6 @@ public class AccountDao {
         if (account == null) {
             return Optional.empty();
         }
-
         return Optional.of(account);
     }
 
@@ -43,9 +53,7 @@ public class AccountDao {
 
         final Account account = new Account(number, balance);
 
-        datastore.put(number, account);
-
-        return account;
+        return datastore.putIfAbsent(number, account);
     }
 
     public void withdraw(Account account, BigDecimal amount) {
@@ -55,7 +63,7 @@ public class AccountDao {
         if (amount.compareTo(BigDecimal.ZERO) == 0) {
             throw new TransferZeroAmountException();
         }
-        if (!datastore.containsKey(account.getNumber())){
+        if (!datastore.containsKey(account.getNumber())) {
             throw new AccountNotFoundException(account.getNumber());
         }
 
@@ -68,7 +76,7 @@ public class AccountDao {
         updatedAccount.setBalance(balance);
         updatedAccount.setModifiedAt(LocalDateTime.now());
 
-        datastore.put(account.getNumber(), updatedAccount);
+        datastore.replace(account.getNumber(), updatedAccount);
     }
 
     public void deposit(Account account, BigDecimal amount) {
@@ -78,7 +86,7 @@ public class AccountDao {
         if (amount.compareTo(BigDecimal.ZERO) == 0) {
             throw new TransferZeroAmountException();
         }
-        if (!datastore.containsKey(account.getNumber())){
+        if (!datastore.containsKey(account.getNumber())) {
             throw new AccountNotFoundException(account.getNumber());
         }
 
@@ -88,7 +96,7 @@ public class AccountDao {
         updatedAccount.setBalance(balance);
         updatedAccount.setModifiedAt(LocalDateTime.now());
 
-        datastore.put(account.getNumber(), updatedAccount);
+        datastore.replace(account.getNumber(), updatedAccount);
     }
 
     public void delete(Account account) {

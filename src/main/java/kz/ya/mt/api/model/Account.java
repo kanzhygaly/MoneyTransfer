@@ -3,7 +3,6 @@ package kz.ya.mt.api.model;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Objects;
-import java.util.concurrent.atomic.LongAdder;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -14,7 +13,6 @@ public class Account {
     private final LocalDateTime createdAt;
     private LocalDateTime modifiedAt;
     private final transient Lock lock = new ReentrantLock();
-    private final transient LongAdder failCounter = new LongAdder();
 
     public Account(String number) {
         this.number = number;
@@ -56,14 +54,6 @@ public class Account {
 
     public Lock getLock() {
         return lock;
-    }
-
-    public LongAdder getFailCounter() {
-        return failCounter;
-    }
-
-    public void incFailedTransferCount() {
-        failCounter.increment();
     }
 
     @Override

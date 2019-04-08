@@ -31,12 +31,12 @@ public class Application {
             throw new ForbiddenResponse();
         });
 
-        app.get("/health", ctx ->
-                ctx.status(200) // OK
+        app.get("/health", ctx
+                -> ctx.status(200) // OK
         );
 
         app.routes(() -> {
-            ApiBuilder.path("/transaction", () -> {
+            ApiBuilder.path("/transfer", () -> {
                 ApiBuilder.post(transferController::process);
             });
         });
@@ -51,9 +51,9 @@ public class Application {
                 ctx.status(404); // NOT FOUND
             } else if (exception instanceof NotEnoughFundsException) {
                 ctx.status(400); // BAD REQUEST
-            } else if (exception instanceof TransferNegativeAmountException ||
-                    exception instanceof TransferZeroAmountException ||
-                    exception instanceof TransferToTheSameAccountException) {
+            } else if (exception instanceof TransferNegativeAmountException
+                    || exception instanceof TransferZeroAmountException
+                    || exception instanceof TransferToTheSameAccountException) {
                 ctx.status(406); // Not Acceptable
             }
             LOGGER.error("Exception: ", exception);
