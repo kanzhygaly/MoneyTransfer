@@ -9,7 +9,9 @@ import io.javalin.json.JavalinJson;
 import io.javalin.validation.JavalinValidation;
 import java.math.BigDecimal;
 import kz.ya.mt.api.controller.TransferController;
+import kz.ya.mt.api.dao.AccountDao;
 import kz.ya.mt.api.exception.*;
+import kz.ya.mt.api.model.Account;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -39,7 +41,7 @@ public class Application {
         
         // Validation
         // Register a custom converter
-        JavalinValidation.register(BigDecimal.class, v -> new BigDecimal(v));
+        JavalinValidation.register(BigDecimal.class, BigDecimal::new);
 
         // Request Handlers
         app.get("/", ctx -> {
@@ -48,7 +50,7 @@ public class Application {
         app.get("/health", ctx
                 -> ctx.status(200) // OK
         );
-        app.post("/transfer", ctx -> transferController.process(ctx));
+        app.post("/transfer", transferController::process);
 
         // Exception Handlers
         app.exception(Exception.class, (ex, ctx) -> {
@@ -75,5 +77,20 @@ public class Application {
             LOGGER.error("Exception: ", ex.getMessage());
             ctx.status(406); // NOT ACCEPTABLE
         });
+
+        createSampleData();
+    }
+
+    /**
+     * Create custom accounts for testing
+     */
+    private static void createSampleData() {
+        LOGGER.info("Populate initial data:");
+        final Account acc1 = AccountDao.getInstance().create(
+                "0ec8ab7c-5af2-11e9-8647-d663bd873d93", new BigDecimal(1000));
+        final Account acc2 = AccountDao.getInstance().create(
+                "0ec8b1e4-5af2-11e9-8647-d663bd873d93", new BigDecimal(2000));
+        LOGGER.info(acc1.toString());
+        LOGGER.info(acc2.toString());
     }
 }

@@ -76,11 +76,6 @@ public class Account {
 
     @Override
     public String toString() {
-        return "Account{" +
-                "number='" + number + '\'' +
-                ", balance=" + balance +
-                ", createdAt=" + createdAt +
-                ", modifiedAt=" + modifiedAt +
-                '}';
+        return "Account [ " + number + " ] with balance \'" + balance + "\' was created at " + createdAt;
     }
 }

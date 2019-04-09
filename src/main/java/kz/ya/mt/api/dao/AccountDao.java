@@ -45,6 +45,14 @@ public class AccountDao {
         return Optional.of(account);
     }
 
+    public Account create(String number, BigDecimal balance) {
+        final Account account = new Account(number, balance);
+
+        datastore.putIfAbsent(number, account);
+
+        return account;
+    }
+
     public Account create(BigDecimal balance) {
         String number = UUID.randomUUID().toString();
 
