@@ -1,8 +1,7 @@
 # MoneyTransfer
-**RESTful API for money transfer between accounts.**
- - simple standalone application
- - in-memory datastore
- - 
+**RESTful API for money transfer between accounts**
+
+Simple multithreaded standalone application with in-memory datastore
 
 ## Technology stack:
  - Java [1.8+](http://www.oracle.com/technetwork/java/javase/overview/index.html)
