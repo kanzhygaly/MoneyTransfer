@@ -1,17 +1,15 @@
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
- */
 package kz.ya.mt.api;
 
+import io.restassured.RestAssured;
 import java.math.BigDecimal;
 import kz.ya.mt.api.dao.AccountDao;
 import kz.ya.mt.api.model.Account;
+import org.junit.BeforeClass;
+import org.junit.Test;
 
 /**
  *
- * @author yerlana
+ * @author yerlan.akhmetov
  */
 public class RestApiIntegrationTest {
 
@@ -54,37 +52,122 @@ public class RestApiIntegrationTest {
 
     @Test
     public void shouldRespondWithForbiddenStatus() {
-        given().when().get("/").then().statusCode(403);
+        RestAssured.given().when().get("/").then().statusCode(403);
     }
 
     @Test
     public void shouldInvokeHealthCheck() {
-        given().when().get("/health").then().statusCode(200);
+        RestAssured.given().when().get("/health").then().statusCode(200);
+    }
+    
+    @Test
+    public void shouldGetNotFoundStatusForInvalidEndpoint() {
+        RestAssured.get("/invalid").then().statusCode(404);
     }
 
     @Test
-    public void shouldCommitTransaction() {
+    public void shouldTransfer() {
         final Account acc1 = AccountDao.getInstance().create(new BigDecimal(100));
         final Account acc2 = AccountDao.getInstance().create(new BigDecimal(50));
 
-        given().param("fromAccountNo", acc1.getNumber())
-                .and().param("toAccountNo", acc2.getNumber())
-                .and().param("amount", "10.00")
+        RestAssured.given()
+                .formParam("fromAccountNo", acc1.getNumber())
+                .and().formParam("toAccountNo", acc2.getNumber())
+                .and().formParam("amount", "10.00")
                 .when().post("/transfer")
                 .then().statusCode(200);
     }
 
     @Test
-    public void shouldTryToCommitTransactionForInvalidAccounts() {
-        given().param("fromAccountNo", "senderNo")
-                .and().param("toAccountNo", "receiverNo")
-                .and().param("money", "10.00")
+    public void shouldTryToTransferForInvalidAccounts() {
+        RestAssured.given()
+                .formParam("fromAccountNo", "senderNo")
+                .and().formParam("toAccountNo", "receiverNo")
+                .and().formParam("amount", "10.00")
                 .when().post("/transfer")
                 .then().statusCode(404);
     }
-
+    
     @Test
-    public void shouldGetNotFoundStatusForInvalidEndpoint() {
-        get("/invalid").then().statusCode(404);
+    public void shouldFailToTransferFromZeroBalanceAccount() {
+        final Account acc1 = AccountDao.getInstance().create(new BigDecimal(0));
+        final Account acc2 = AccountDao.getInstance().create(new BigDecimal(100));
+        
+        RestAssured.given()
+                .formParam("fromAccountNo", acc1.getNumber())
+                .formParam("toAccountNo", acc2.getNumber())
+                .and().formParam("amount", "60")
+                .when().post("/transfer")
+                .then().statusCode(400);
+    }
+    
+    @Test
+    public void shouldFailToTransferToTheSameAccount() {
+        final Account acc = AccountDao.getInstance().create(new BigDecimal(100));
+        
+        RestAssured.given()
+                .formParam("fromAccountNo", acc.getNumber())
+                .formParam("toAccountNo", acc.getNumber())
+                .and().formParam("amount", "65")
+                .when().post("/transfer")
+                .then().statusCode(406);
+    }
+    
+    @Test
+    public void shouldGetBadRequestStatusForNullSender() {
+        RestAssured.given()
+                .formParam("toAccountNo", "receiverNo")
+                .and().formParam("amount", "10.00")
+                .when().post("/transfer")
+                .then().statusCode(400);
+    }
+    
+    @Test
+    public void shouldGetBadRequestStatusForNullReceiver() {
+        final Account acc = AccountDao.getInstance().create(new BigDecimal(20));
+        
+        RestAssured.given()
+                .formParam("fromAccountNo", acc.getNumber())
+                .and().formParam("amount", "10.00")
+                .when().post("/transfer")
+                .then().statusCode(400);
+    }
+    
+    @Test
+    public void shouldGetBadRequestStatusForNullAmount() {
+        final Account acc1 = AccountDao.getInstance().create(new BigDecimal(200));
+        final Account acc2 = AccountDao.getInstance().create(new BigDecimal(0));
+        
+        RestAssured.given()
+                .formParam("fromAccountNo", acc1.getNumber())
+                .formParam("toAccountNo", acc2.getNumber())
+                .when().post("/transfer")
+                .then().statusCode(400);
+    }
+    
+    @Test
+    public void shouldGetNotAcceptableStatusForNegativeAmount() {
+        final Account acc1 = AccountDao.getInstance().create(new BigDecimal(200));
+        final Account acc2 = AccountDao.getInstance().create(new BigDecimal(0));
+        
+        RestAssured.given()
+                .formParam("fromAccountNo", acc1.getNumber())
+                .formParam("toAccountNo", acc2.getNumber())
+                .and().formParam("amount", "-10")
+                .when().post("/transfer")
+                .then().statusCode(406);
+    }
+    
+    @Test
+    public void shouldGetNotAcceptableStatusForZeroAmount() {
+        final Account acc1 = AccountDao.getInstance().create(new BigDecimal(200));
+        final Account acc2 = AccountDao.getInstance().create(new BigDecimal(0));
+        
+        RestAssured.given()
+                .formParam("fromAccountNo", acc1.getNumber())
+                .formParam("toAccountNo", acc2.getNumber())
+                .and().formParam("amount", "0")
+                .when().post("/transfer")
+                .then().statusCode(406);
     }
 }

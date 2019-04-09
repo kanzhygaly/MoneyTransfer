@@ -1,5 +1,9 @@
 package kz.ya.mt.api.exception;
 
+/**
+ *
+ * @author yerlan.akhmetov
+ */
 public class TransferZeroAmountException extends RuntimeException {
 
     @Override

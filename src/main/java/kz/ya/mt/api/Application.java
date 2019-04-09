@@ -4,8 +4,10 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import io.javalin.ForbiddenResponse;
 import io.javalin.Javalin;
-import io.javalin.apibuilder.ApiBuilder;
+import io.javalin.JavalinEvent;
 import io.javalin.json.JavalinJson;
+import io.javalin.validation.JavalinValidation;
+import java.math.BigDecimal;
 import kz.ya.mt.api.controller.TransferController;
 import kz.ya.mt.api.exception.*;
 import org.slf4j.Logger;
@@ -23,40 +25,55 @@ public class Application {
         JavalinJson.setFromJsonMapper(gson::fromJson);
         JavalinJson.setToJsonMapper(gson::toJson);
 
-        Javalin app = Javalin.create()
-                .port(PORT)
-                .start();
+        final Javalin app = Javalin.create()
+                .event(JavalinEvent.SERVER_STARTED, () -> LOGGER.info("Server is started..."))
+                .event(JavalinEvent.SERVER_START_FAILED, () -> LOGGER.error("Server start was failed!"))
+                .requestLogger((context, executionTimeMs)
+                        -> LOGGER.info("{} ms\t {}\t {} {}",
+                        executionTimeMs,
+                        context.req.getMethod(),
+                        context.req.getRequestURI(),
+                        context.req.getParameterMap().toString().replaceAll("^.|.$", "")
+                ))
+                .start(PORT);
+        
+        // Validation
+        // Register a custom converter
+        JavalinValidation.register(BigDecimal.class, v -> new BigDecimal(v));
 
+        // Request Handlers
         app.get("/", ctx -> {
             throw new ForbiddenResponse();
         });
-
         app.get("/health", ctx
                 -> ctx.status(200) // OK
         );
+        app.post("/transfer", ctx -> transferController.process(ctx));
 
-        app.routes(() -> {
-            ApiBuilder.path("/transfer", () -> {
-                ApiBuilder.post(transferController::process);
-            });
+        // Exception Handlers
+        app.exception(Exception.class, (ex, ctx) -> {
+            LOGGER.error("Error occurred: ", ex.getMessage());
+            ctx.status(500); // SERVER INTERNAL ERROR
         });
-
-        app.exception(Exception.class, (exception, ctx) -> {
-            ctx.status(500); // Internal Server Error
-            LOGGER.error("Error occurred: ", exception);
+        app.exception(AccountNotFoundException.class, (ex, ctx) -> {
+            LOGGER.error("Exception: ", ex.getMessage());
+            ctx.status(404); // NOT FOUND
         });
-
-        app.exception(RuntimeException.class, (exception, ctx) -> {
-            if (exception instanceof AccountNotFoundException) {
-                ctx.status(404); // NOT FOUND
-            } else if (exception instanceof NotEnoughFundsException) {
-                ctx.status(400); // BAD REQUEST
-            } else if (exception instanceof TransferNegativeAmountException
-                    || exception instanceof TransferZeroAmountException
-                    || exception instanceof TransferToTheSameAccountException) {
-                ctx.status(406); // Not Acceptable
-            }
-            LOGGER.error("Exception: ", exception);
+        app.exception(NotEnoughFundsException.class, (ex, ctx) -> {
+            LOGGER.error("Exception: ", ex.getMessage());
+            ctx.status(400); // BAD REQUEST
+        });
+        app.exception(TransferNegativeAmountException.class, (ex, ctx) -> {
+            LOGGER.error("Exception: ", ex.getMessage());
+            ctx.status(406); // NOT ACCEPTABLE
+        });
+        app.exception(TransferZeroAmountException.class, (ex, ctx) -> {
+            LOGGER.error("Exception: ", ex.getMessage());
+            ctx.status(406); // NOT ACCEPTABLE
+        });
+        app.exception(TransferToTheSameAccountException.class, (ex, ctx) -> {
+            LOGGER.error("Exception: ", ex.getMessage());
+            ctx.status(406); // NOT ACCEPTABLE
         });
     }
 }

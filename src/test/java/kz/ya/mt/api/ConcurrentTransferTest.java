@@ -1,8 +1,3 @@
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
- */
 package kz.ya.mt.api;
 
 import java.math.BigDecimal;
@@ -10,12 +5,18 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
+import kz.ya.mt.api.controller.TransferController;
 import kz.ya.mt.api.dao.AccountDao;
 import kz.ya.mt.api.model.Account;
+import net.jodah.concurrentunit.Waiter;
+import org.junit.After;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Test;
 
 /**
  *
- * @author yerlana
+ * @author yerlan.akhmetov
  */
 public class ConcurrentTransferTest {
 
@@ -23,132 +24,86 @@ public class ConcurrentTransferTest {
 
     private ExecutorService executorService;
     private Waiter waiter;
+    private TransferController transferController;
 
     @Before
     public void setUp() {
         waiter = new Waiter();
         executorService = Executors.newFixedThreadPool(NUMBER_OF_THREADS);
+        transferController = new TransferController();
     }
 
     @After
     public void tearDown() {
         executorService.shutdown();
     }
-
+    
     @Test
-//    @SuppressWarnings("OptionalGetWithoutIsPresent")
-    public void shouldHandleConcurrentTransactions() throws Exception {
+    public void shouldPassOnlyOneTransfer() throws Exception {
         // given
-        final Account acc1 = AccountDao.getInstance().create(new BigDecimal(100));
-        final Account acc2 = AccountDao.getInstance().create(new BigDecimal(50));
-
-        // send 5 EUR: AC1 -> AC2
-        final Transaction transaction1 = Transaction
-                .builder()
-                .id("transaction_1")
-                .createdAt(LocalDateTime.now())
-                .from(sender)
-                .to(receiver)
-                .money(Money.of(CurrencyUnit.EUR, 5))
-                .build();
-
-        // send 10 EUR: AC1 -> AC2
-        final Transaction transaction2 = Transaction
-                .builder()
-                .id("transaction_2")
-                .createdAt(LocalDateTime.now())
-                .from(sender)
-                .to(receiver)
-                .money(Money.of(CurrencyUnit.EUR, 10))
-                .build();
-
-        // send 1 EUR: AC2 -> AC1
-        final Transaction transaction3 = Transaction
-                .builder()
-                .id("transaction_3")
-                .createdAt(LocalDateTime.now())
-                .from(receiver)
-                .to(sender)
-                .money(Money.of(CurrencyUnit.EUR, 1))
-                .build();
+        final Account acc1 = AccountDao.getInstance().create(BigDecimal.TEN);
+        final Account acc2 = AccountDao.getInstance().create(BigDecimal.ZERO);
 
         // when
-        executorService.submit(() -> commitTransaction(transaction1));
-        executorService.submit(() -> commitTransaction(transaction2));
-        executorService.submit(() -> commitTransaction(transaction3));
+        // send 10: AC1 -> AC2
+        executorService.submit(() -> transfer(acc1, acc2, BigDecimal.TEN));
+        // send 10: AC1 -> AC2
+        executorService.submit(() -> transfer(acc1, acc2, BigDecimal.TEN));
 
-        waiter.await(5, TimeUnit.SECONDS, 3);
-
-        // then
-        Money senderMoney = accountRepository.get(sender.number()).get().money();
-        Money receiverMoney = accountRepository.get(receiver.number()).get().money();
-
-        assertThat(transactionRepository.get().size()).isEqualTo(3);
-        assertThat(senderMoney).isEqualTo(Money.of(CurrencyUnit.EUR, 86));
-        assertThat(receiverMoney).isEqualTo(Money.of(CurrencyUnit.EUR, 64));
-    }
-
-    @Test
-    @SuppressWarnings("OptionalGetWithoutIsPresent")
-    public void shouldPassOnlyOneTransaction() throws Exception {
-        // given
-        final Account sender = createSenderAccount("AC1", Money.of(CurrencyUnit.EUR, 10));
-        final Account receiver = createReceiverAccount("AC2", Money.of(CurrencyUnit.EUR, 0));
-        accountRepository.create(sender);
-        accountRepository.create(receiver);
-
-        // send 10 EUR: AC1 -> AC2
-        final Transaction transaction1 = Transaction
-                .builder()
-                .id("transaction_1")
-                .createdAt(LocalDateTime.now())
-                .from(sender)
-                .to(receiver)
-                .money(Money.of(CurrencyUnit.EUR, 10))
-                .build();
-
-        // send 10 EUR: AC1 -> AC2
-        final Transaction transaction2 = Transaction
-                .builder()
-                .id("transaction_2")
-                .createdAt(LocalDateTime.now())
-                .from(sender)
-                .to(receiver)
-                .money(Money.of(CurrencyUnit.EUR, 10))
-                .build();
-
-        // when
-        executorService.submit(() -> commitTransaction(transaction1));
-        executorService.submit(() -> commitTransaction(transaction2));
-
+        // block the main thread, until 1 thread is completed
         waiter.await(5, TimeUnit.SECONDS, 1);
 
         // then
-        Money senderMoney = accountRepository.get(sender.number()).get().money();
-        Money receiverMoney = accountRepository.get(receiver.number()).get().money();
+        BigDecimal acc1Balance = AccountDao.getInstance().get(acc1.getNumber()).get().getBalance();
+        BigDecimal acc2Balance = AccountDao.getInstance().get(acc2.getNumber()).get().getBalance();
 
-        assertThat(transactionRepository.get().size()).isEqualTo(1);
-        assertThat(senderMoney).isEqualTo(Money.of(CurrencyUnit.EUR, 0));
-        assertThat(receiverMoney).isEqualTo(Money.of(CurrencyUnit.EUR, 10));
+        Assert.assertEquals(acc1Balance, BigDecimal.ZERO);
+        Assert.assertEquals(acc2Balance, BigDecimal.TEN);
     }
 
-    private void commitTransaction(Transaction transaction) {
+    @Test
+    public void shouldHandleConcurrentTransfers() throws Exception {
+        // given
+        final Account acc1 = AccountDao.getInstance().create(new BigDecimal(200));
+        final Account acc2 = AccountDao.getInstance().create(new BigDecimal(50));
+
+        // when
+        // send 20: AC1 -> AC2
+        executorService.submit(() -> transfer(acc1, acc2, new BigDecimal(20)));
+        // send 15: AC2 -> AC1
+        executorService.submit(() -> transfer(acc2, acc1, new BigDecimal(15)));
+        // send 50: AC1 -> AC2
+        executorService.submit(() -> transfer(acc1, acc2, new BigDecimal(50)));
+
+        // block the main thread, until all 3 threads are completed
+        waiter.await(5, TimeUnit.SECONDS, 3);
+
+        // then
+        BigDecimal acc1Balance = AccountDao.getInstance().get(acc1.getNumber()).get().getBalance();
+        BigDecimal acc2Balance = AccountDao.getInstance().get(acc2.getNumber()).get().getBalance();
+
+        Assert.assertEquals(acc1Balance, new BigDecimal(145));
+        Assert.assertEquals(acc2Balance, new BigDecimal(105));
+    }    
+
+    private void transfer(Account from, Account to, BigDecimal amount) {
         try {
             Thread.sleep(ThreadLocalRandom.current().nextInt(3000));
-            
-            transactionRepository.commit(transaction);
-            
-            waiter.assertNotNull(transaction);
-            
-            System.out.println(String.format("executing: %s, time: %d ms, thread: %s",
-                    transaction.id(),
-                    TimeUnit.MILLISECONDS.convert(System.nanoTime(), TimeUnit.NANOSECONDS),
-                    Thread.currentThread().getName())
+
+            boolean isCompletedSuccessfully = transferController.performTransaction(from, to, amount);
+
+            System.out.println("Transfer [" + from.getNumber() + "] -> [" + to.getNumber()
+                    + "] result is " + isCompletedSuccessfully);
+
+            System.out.println(String.format("executing: thread [%s], time: %d ms",
+                    Thread.currentThread().getName(),
+                    TimeUnit.MILLISECONDS.convert(System.nanoTime(), TimeUnit.NANOSECONDS))
             );
-            
+
+            // notify waiter that current thread is completed
             waiter.resume();
-        } catch (Exception e) {
-            e.printStackTrace();
+        } catch (InterruptedException ex) {
+            ex.printStackTrace();
         }
     }
 }

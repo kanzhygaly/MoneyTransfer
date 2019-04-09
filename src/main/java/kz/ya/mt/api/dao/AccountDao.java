@@ -13,14 +13,16 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
+/**
+ *
+ * @author yerlan.akhmetov
+ */
 public class AccountDao {
 
     private final ConcurrentMap<String, Account> datastore = new ConcurrentHashMap<>(1000);
     private volatile static AccountDao INSTANCE;
 
     private AccountDao() {
-        // to prevent creating another instance of AccountDao using Reflection
-        throw new RuntimeException("AccountDao is already initialized");
     }
 
     public static AccountDao getInstance() {
@@ -31,11 +33,6 @@ public class AccountDao {
                 }
             }            
         }
-        return INSTANCE;
-    }
-        
-    private Object readResolve(){
-        // to prevent another instance of AccountDao during Serialization
         return INSTANCE;
     }
 
@@ -52,8 +49,10 @@ public class AccountDao {
         String number = UUID.randomUUID().toString();
 
         final Account account = new Account(number, balance);
+        
+        datastore.putIfAbsent(number, account);
 
-        return datastore.putIfAbsent(number, account);
+        return account;
     }
 
     public void withdraw(Account account, BigDecimal amount) {
