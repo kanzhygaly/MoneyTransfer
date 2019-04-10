@@ -6,7 +6,6 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Modifier;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.time.ZoneOffset;
 import java.util.Optional;
 import kz.ya.mt.api.exception.AccountAlreadyExistsException;
 import kz.ya.mt.api.exception.AccountNotFoundException;
@@ -18,7 +17,6 @@ import kz.ya.mt.api.exception.NullInputAmountException;
 import kz.ya.mt.api.exception.TransferNegativeAmountException;
 import kz.ya.mt.api.exception.TransferZeroAmountException;
 import kz.ya.mt.api.model.Account;
-import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -35,10 +33,6 @@ public class AccountDaoTest {
         Field instance = AccountDao.class.getDeclaredField("INSTANCE");
         instance.setAccessible(true);
         instance.set(null, null);
-    }
-
-    @After
-    public void tearDown() {
     }
 
     @Test
@@ -126,8 +120,9 @@ public class AccountDaoTest {
         final Account updatedAccount = AccountDao.getInstance().get(account.getNumber()).get();
 
         Assert.assertEquals(new BigDecimal(9), updatedAccount.getBalance());
-        Assert.assertNotEquals(expectedModifiedAt.toInstant(ZoneOffset.ofTotalSeconds(0)).toEpochMilli(),
-                updatedAccount.getModifiedAt().toInstant(ZoneOffset.ofTotalSeconds(0)).toEpochMilli());
+        
+        boolean isEqual = expectedModifiedAt.equals(updatedAccount.getModifiedAt());
+        Assert.assertFalse(isEqual);
     }
 
     @Test(expected = AccountNotFoundException.class)
@@ -177,8 +172,9 @@ public class AccountDaoTest {
         final Account updatedAccount = AccountDao.getInstance().get(account.getNumber()).get();
 
         Assert.assertEquals(BigDecimal.ONE, updatedAccount.getBalance());
-        Assert.assertNotEquals(expectedModifiedAt.toInstant(ZoneOffset.ofTotalSeconds(0)).toEpochMilli(),
-                updatedAccount.getModifiedAt().toInstant(ZoneOffset.ofTotalSeconds(0)).toEpochMilli());
+        
+        boolean isEqual = expectedModifiedAt.equals(updatedAccount.getModifiedAt());
+        Assert.assertFalse(isEqual);
     }
 
     @Test(expected = AccountNotFoundException.class)
