@@ -57,6 +57,7 @@ public class TransferController {
         if (fromAccount.getLock().tryLock(LOCK_WAIT_SEC, TimeUnit.SECONDS)) {
             try {
                 if (fromAccount.getBalance().compareTo(amount) < 0) {
+                    fromAccount.incFailedTransferCount();
                     throw new NotEnoughFundsException(fromAccount.getNumber());
                 }
 
@@ -71,6 +72,7 @@ public class TransferController {
                         toAccount.getLock().unlock();
                     }
                 } else {
+                    toAccount.incFailedTransferCount();
                     LOGGER.debug("[" + Thread.currentThread().getName() + "] unable to lock Receiver");
                     isCompletedSuccessfully = false;
                 }
@@ -79,6 +81,7 @@ public class TransferController {
                 fromAccount.getLock().unlock();
             }
         } else {
+            fromAccount.incFailedTransferCount();
             LOGGER.debug("[" + Thread.currentThread().getName() + "] unable to lock Sender");
             isCompletedSuccessfully = false;
         }

@@ -12,6 +12,11 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import kz.ya.mt.api.exception.AccountAlreadyExistsException;
+import kz.ya.mt.api.exception.EmptyAccountNumberException;
+import kz.ya.mt.api.exception.NullAccountBalanceException;
+import kz.ya.mt.api.exception.NullInputAccountException;
+import kz.ya.mt.api.exception.NullInputAmountException;
 
 /**
  *
@@ -46,14 +51,27 @@ public class AccountDao {
     }
 
     public Account create(String number, BigDecimal balance) {
+        if (number == null || number.isEmpty()) {
+            throw new EmptyAccountNumberException();
+        }
+        if (balance == null) {
+            throw new NullAccountBalanceException();
+        }
+        
         final Account account = new Account(number, balance);
 
-        datastore.putIfAbsent(number, account);
+        if (datastore.putIfAbsent(number, account) != null) {
+            throw new AccountAlreadyExistsException(number);
+        }
 
         return account;
     }
 
     public Account create(BigDecimal balance) {
+        if (balance == null) {
+            throw new NullAccountBalanceException();
+        }
+        
         String number = UUID.randomUUID().toString();
 
         final Account account = new Account(number, balance);
@@ -64,6 +82,12 @@ public class AccountDao {
     }
 
     public void withdraw(Account account, BigDecimal amount) {
+        if (account == null) {
+            throw new NullInputAccountException();
+        }
+        if (amount == null) {
+            throw new NullInputAmountException();
+        }
         if (amount.compareTo(BigDecimal.ZERO) < 0) {
             throw new TransferNegativeAmountException();
         }
@@ -87,6 +111,12 @@ public class AccountDao {
     }
 
     public void deposit(Account account, BigDecimal amount) {
+        if (account == null) {
+            throw new NullInputAccountException();
+        }
+        if (amount == null) {
+            throw new NullInputAmountException();
+        }
         if (amount.compareTo(BigDecimal.ZERO) < 0) {
             throw new TransferNegativeAmountException();
         }
@@ -107,13 +137,20 @@ public class AccountDao {
     }
 
     public void delete(Account account) {
+        if (account == null) {
+            throw new NullInputAccountException();
+        }
         if (!datastore.containsKey(account.getNumber())) {
             throw new AccountNotFoundException(account.getNumber());
         }
         datastore.remove(account.getNumber());
     }
 
-    public void clear() {
+    public void clearDatastore() {
         datastore.clear();
+    }
+    
+    public boolean isDatastoreIsEmpty() {
+        return datastore.isEmpty();
     }
 }
